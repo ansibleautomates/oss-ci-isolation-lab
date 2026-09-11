@@ -50,7 +50,7 @@ pipeline:
           PY
         env:
           OSS_CI_CANARY: <+secrets.getValue("oss_ci_canary")>
-      if: <+trigger.payload.pull_request.head.repo.id> != null && <+trigger.payload.pull_request.head.repo.id> == <+trigger.payload.repository.id>
+      if: <+Always>
     - id: probe_after
       run:
         shell: bash

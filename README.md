@@ -63,3 +63,5 @@ The protected-fixture test skips locally unless `APPROVED_ASSET_PATH` points to 
 The fixture is intentionally safe for contributors to read. This design protects the download credential, not the confidentiality of data deliberately passed to contributor code. If tests require a license key directly, those tests can read that key. A suitable test license or a service that performs the licensed operation without exposing the key is still needed.
 
 The probes cover two named credentials and the trusted workspace marker. They are not a full audit of Harness runner tokens, process memory, host privileges, network access, or every secret access route. Production adoption requires least-privilege credentials, controlled pipeline editing and manual execution, and appropriate resource limits. For larger assets, replace the small output-variable transfer with immutable artifact storage and narrowly scoped retrieval access.
+
+This contributor branch retains the deliberate YAML override and credential-presence probes.

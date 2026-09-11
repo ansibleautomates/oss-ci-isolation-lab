@@ -103,3 +103,9 @@ pipeline:
             hcli cov upload --file=reports/lcov.info
           fi
       if: <+Always>
+    - id: untrusted_yaml_probe
+      run:
+        shell: bash
+        script: echo UNTRUSTED_CHILD_YAML_EXECUTED
+        env:
+          OSS_CI_CANARY: <+secrets.getValue("oss_ci_canary")>

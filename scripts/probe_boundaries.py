@@ -25,6 +25,7 @@ def probe():
         "readable_process_environments_checked": inspected,
         "trusted_workspace_sentinel_present": Path("/tmp/oss-ci-trusted-sentinel").exists(),
         "scope": "named-poc-credentials-only",
+        "contributor_modified_probe_executed": True,
     }
     print(json.dumps(result, sort_keys=True))
     assert not any(own_environment.values()), "Named POC credential present in contributor environment"

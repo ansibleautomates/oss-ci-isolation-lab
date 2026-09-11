@@ -28,3 +28,10 @@ def test_prepared_asset():
         asset = json.load(f)
     assert asset["currency"] == "USD"
     assert total_cost(asset["items"], asset["discount_percent"]) == 27
+
+
+def test_contributor_cli_example():
+    import subprocess
+    import sys
+    output = subprocess.check_output([sys.executable, "app.py"], text=True)
+    assert json.loads(output)["total"] == 27
