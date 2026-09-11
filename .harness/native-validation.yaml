@@ -1,5 +1,7 @@
 pipeline:
   timeout: 6m
+  env:
+    DRONE_PR_MERGE_STRATEGY_BRANCH: 'true'
   inputs:
     expected_base_sha:
       type: string
