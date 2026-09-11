@@ -1,0 +1,100 @@
+pipeline:
+  clone:
+    enabled: false
+  timeout: 10m
+  inputs:
+    head_sha:
+      type: string
+      default: ''
+    base_sha:
+      type: string
+      default: ''
+  env:
+    CI_ENABLE_HCLI_FOR_TESTS: 'true'
+  stages:
+  - id: pinned_merge_tests
+    runtime: cloud
+    clone:
+      enabled: false
+    cache:
+      enabled: false
+    steps:
+    - id: merge_pinned_revisions
+      run:
+        shell: bash
+        script: 'set -eu
+
+          python3 - <<''CODE''
+
+          import json,os,re,subprocess
+
+          head=os.environ[''EXPECTED_SHA'']
+
+          base=os.environ[''EXPECTED_BASE_SHA'']
+
+          assert all(re.fullmatch(r''[0-9a-f]{40}'',s) for s in (base,head)), ''Full base and head SHAs required''
+
+          def run(*args): subprocess.run([''git'',*args],check=True)
+
+          run(''init'')
+
+          run(''remote'',''add'',''origin'',''https://github.com/ansibleautomates/oss-ci-isolation-lab.git'')
+
+          for sha in (base,head): run(''-c'',''credential.helper='',''fetch'',''--depth=100'',''origin'',sha)
+
+          run(''checkout'',''--detach'',base)
+
+          run(''-c'',''user.name=OSS CI Validation'',''-c'',''user.email=ci@example.invalid'',''merge'',''--no-edit'',head)
+
+          run(''merge-base'',''--is-ancestor'',base,''HEAD'')
+
+          run(''merge-base'',''--is-ancestor'',head,''HEAD'')
+
+          actual=subprocess.check_output([''git'',''rev-parse'',''HEAD''],text=True).strip()
+
+          print(json.dumps({''base_sha'':base,''head_sha'':head,''tested_merge_sha'':actual,''both_revisions_included'':True,''checkout_authentication'':''anonymous''}))
+
+          CODE
+
+          '
+        env:
+          EXPECTED_SHA: ${{ inputs.head_sha }}
+          EXPECTED_BASE_SHA: ${{ inputs.base_sha }}
+    - id: probe_before
+      run:
+        shell: bash
+        script: python3 scripts/probe_boundaries.py
+    - id: build_and_run
+      run:
+        shell: bash
+        script: 'set -eu
+
+          python3 -m venv .venv
+
+          .venv/bin/python -m pip install --disable-pip-version-check -r requirements-test.txt
+
+          .venv/bin/python -m compileall -q app.py
+
+          mkdir -p dist
+
+          cp app.py dist/app.py
+
+          .venv/bin/python app.py
+
+          '
+    - id: test
+      run:
+        shell: bash
+        script: 'set -eu
+
+          .venv/bin/python -m pytest -q --junitxml=reports/junit.xml --cov=app --cov-report=lcov:reports/lcov.info --cov-report=xml:reports/coverage.xml
+          --cov-report=html:reports/coverage-html --cov-report=term-missing
+
+          '
+    - id: upload_reports
+      run:
+        shell: bash
+        script: "set -eu\nif [ -f reports/junit.xml ]; then\n  hcli test-reports upload reports/junit.xml\nfi\nif [ -f reports/lcov.info\
+          \ ]; then\n  hcli cov upload --file=reports/lcov.info\nfi\n"
+      if: <+Always>
+
