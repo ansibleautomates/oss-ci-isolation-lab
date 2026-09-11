@@ -1,5 +1,9 @@
 pipeline:
   timeout: 6m
+  inputs:
+    expected_base_sha:
+      type: string
+      default: ''
   clone:
     enabled: true
     connector: oss_ci_github
@@ -20,6 +24,7 @@ pipeline:
       run:
         shell: bash
         env:
+          EXPECTED_BASE_SHA: ${{ inputs.expected_base_sha }}
           PR_NUMBER: <+codebase.prNumber>
           CODEBASE_SHA: <+codebase.commitSha>
           BASE_SHA: <+codebase.baseCommitSha>
@@ -36,13 +41,17 @@ pipeline:
           keys=['PR_NUMBER','CODEBASE_SHA','BASE_SHA','SOURCE_BRANCH','TARGET_BRANCH','TRIGGER_SOURCE_REPO']
           evidence={k:os.environ.get(k,'') for k in keys}
           evidence.update(actual_checkout_sha=sha,parents=parents,merge_commit=len(parents)==2)
-          assert len(parents)==2, 'Expected native PR merge checkout'
           assert os.environ.get('PR_NUMBER')=='1', 'PR metadata missing'
           result=subprocess.run(['git','config','--get-regexp','credential|extraheader'],text=True,capture_output=True)
           evidence['git_credential_config_present']=bool(result.stdout.strip())
           evidence['home_netrc_present']=pathlib.Path.home().joinpath('.netrc').exists()
           evidence['contributor_code_executed']=False
+          expected=os.environ['EXPECTED_BASE_SHA']
+          evidence['expected_base_sha']=expected
+          subprocess.run(['git','-c','credential.helper=','fetch','--depth=100','origin',expected],check=True)
+          evidence['expected_base_included']=subprocess.run(['git','merge-base','--is-ancestor',expected,'HEAD']).returncode==0
           print(json.dumps(evidence,sort_keys=True))
+          assert evidence['expected_base_included'], 'Native checkout did not include the required base revision'
           PY
     - id: original_guard_manual
       if: <+trigger.payload.pull_request.head.repo.id> != null && <+trigger.payload.pull_request.head.repo.id> == <+trigger.payload.repository.id>
