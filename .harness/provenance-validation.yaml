@@ -1,0 +1,73 @@
+pipeline:
+  clone:
+    enabled: false
+  timeout: 6m
+  inputs:
+    head_sha:
+      type: string
+      default: ''
+    pr_number:
+      type: string
+      default: '0'
+  stages:
+  - id: missing_event_guard
+    runtime: cloud
+    clone:
+      enabled: false
+    cache:
+      enabled: false
+    steps:
+    - id: manual_guard
+      if: <+trigger.payload.pull_request.head.repo.id> != null && <+trigger.payload.pull_request.head.repo.id>
+        == <+trigger.payload.repository.id>
+      run:
+        shell: bash
+        env:
+          OSS_CI_CANARY: <+secrets.getValue("oss_ci_canary")>
+        script: 'echo ''UNEXPECTED_SECRET_STEP_EXECUTION''
+
+          exit 1'
+    - id: after_guard
+      run:
+        shell: bash
+        script: echo 'MANUAL_NULL_GUARD_CONTINUED'
+  - id: trusted_preparation
+    runtime: cloud
+    clone:
+      enabled: false
+    cache:
+      enabled: false
+    steps:
+    - id: download_fixed_asset
+      run:
+        shell: bash
+        script: "set -eu\npython3 - <<'PY'\nimport base64,hashlib,json,os,re,shlex,urllib.request\n\
+          from pathlib import Path\nsha=os.environ['EXPECTED_SHA']\nassert re.fullmatch(r'[0-9a-f]{40}',sha),\
+          \ 'Exact commit SHA required'\nnumber=os.environ['PR_NUMBER']\nassert re.fullmatch(r'[0-9]+',number)\n\
+          assert os.environ['OSS_CI_CANARY'].startswith('synthetic-only-')\ndef get(path):\n\
+          \    req=urllib.request.Request('https://api.github.com/'+path,headers={'Authorization':'Bearer\
+          \ '+os.environ['OSS_CI_ASSETS_TOKEN'],'Accept':'application/vnd.github+json'})\n\
+          \    with urllib.request.urlopen(req,timeout=30) as response:return json.load(response)\n\
+          if number!='0':\n    pr=get('repos/ansibleautomates/oss-ci-isolation-lab/pulls/'+number)\n\
+          \    assert pr['base']['repo']['id']==1366105248 and pr['base']['ref']=='main'\n\
+          \    assert pr['head']['sha']==sha, 'PR changed since trigger; use the new\
+          \ revision'\nelse:\n    assert get('repos/ansibleautomates/oss-ci-isolation-lab/commits/main')['sha']==sha\n\
+          response=get('repos/ansibleautomates/oss-ci-assets-private/contents/fixtures/pricing.json?ref=225af5ec76b70ae52a7b01567871b2c3e0fee8f3')\n\
+          download=base64.b64decode(response['content'])\ndata=json.loads(download)\n\
+          assert set(data)=={'schema','currency','discount_percent','items'} and data['schema']==1\n\
+          assert data['currency']=='USD' and data['discount_percent']==10 and data['items']==[10,20]\n\
+          asset=json.dumps(data,sort_keys=True,separators=(',',':')).encode()\nmachine=Path('/proc/sys/kernel/random/boot_id').read_text().strip()\n\
+          Path('/tmp/oss-ci-trusted-sentinel').write_text(machine)\nvalues={'ASSET_B64':base64.b64encode(asset).decode(),'ASSET_SHA256':hashlib.sha256(asset).hexdigest(),'PREP_MACHINE_ID':machine}\n\
+          Path('/tmp/oss-ci-prepared.env').write_text('\\n'.join('export '+key+'='+shlex.quote(value)\
+          \ for key,value in values.items())+'\\n')\nprint(json.dumps({'private_asset_downloaded':True,'trusted_canary_resolved':True,'contributor_code_executed':False,'asset_sha256':values['ASSET_SHA256']}))\n\
+          PY\n. /tmp/oss-ci-prepared.env\n"
+        env:
+          OSS_CI_CANARY: <+secrets.getValue("oss_ci_canary")>
+          OSS_CI_ASSETS_TOKEN: <+secrets.getValue("oss_ci_assets_token")>
+          EXPECTED_SHA: ${{ inputs.head_sha }}
+          PR_NUMBER: ${{ inputs.pr_number }}
+        output:
+        - name: ASSET_B64
+        - name: ASSET_SHA256
+        - name: PREP_MACHINE_ID
+
