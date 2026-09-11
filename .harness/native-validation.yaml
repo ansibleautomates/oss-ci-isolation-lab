@@ -1,0 +1,59 @@
+pipeline:
+  timeout: 6m
+  clone:
+    enabled: true
+    connector: oss_ci_github
+    repo: oss-ci-isolation-lab
+    ref:
+      type: pull-request
+      number: 1
+    strategy: merge
+    persist-credentials: false
+    submodules: false
+  stages:
+  - id: native_metadata
+    runtime: cloud
+    cache:
+      enabled: false
+    steps:
+    - id: inspect_native_checkout
+      run:
+        shell: bash
+        env:
+          PR_NUMBER: <+codebase.prNumber>
+          CODEBASE_SHA: <+codebase.commitSha>
+          BASE_SHA: <+codebase.baseCommitSha>
+          SOURCE_BRANCH: <+codebase.sourceBranch>
+          TARGET_BRANCH: <+codebase.targetBranch>
+          TRIGGER_SOURCE_REPO: <+trigger.sourceRepo>
+        script: |
+          set -eu
+          python3 - <<'PY'
+          import json,os,subprocess,pathlib
+          def git(*args): return subprocess.check_output(['git',*args],text=True).strip()
+          sha=git('rev-parse','HEAD')
+          parents=git('rev-list','--parents','-n','1','HEAD').split()[1:]
+          keys=['PR_NUMBER','CODEBASE_SHA','BASE_SHA','SOURCE_BRANCH','TARGET_BRANCH','TRIGGER_SOURCE_REPO']
+          evidence={k:os.environ.get(k,'') for k in keys}
+          evidence.update(actual_checkout_sha=sha,parents=parents,merge_commit=len(parents)==2)
+          assert len(parents)==2, 'Expected native PR merge checkout'
+          assert os.environ.get('PR_NUMBER')=='1', 'PR metadata missing'
+          result=subprocess.run(['git','config','--get-regexp','credential|extraheader'],text=True,capture_output=True)
+          evidence['git_credential_config_present']=bool(result.stdout.strip())
+          evidence['home_netrc_present']=pathlib.Path.home().joinpath('.netrc').exists()
+          evidence['contributor_code_executed']=False
+          print(json.dumps(evidence,sort_keys=True))
+          PY
+    - id: original_guard_manual
+      if: <+trigger.payload.pull_request.head.repo.id> != null && <+trigger.payload.pull_request.head.repo.id> == <+trigger.payload.repository.id>
+      run:
+        shell: bash
+        env:
+          OSS_CI_CANARY: <+secrets.getValue("oss_ci_canary")>
+        script: |
+          echo 'UNEXPECTED_SECRET_STEP_EXECUTION'
+          exit 1
+    - id: after_guard
+      run:
+        shell: bash
+        script: echo 'MANUAL_NULL_GUARD_CONTINUED'
