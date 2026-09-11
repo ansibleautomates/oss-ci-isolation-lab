@@ -13,6 +13,7 @@ jobs:
         with:
           persist-credentials: false
       - name: Verify fork secret withholding
+        if: github.event.pull_request.head.repo.full_name != github.repository
         env:
           OSS_CI_CANARY: ${{ secrets.OSS_CI_CANARY }}
         run: python3 scripts/probe_boundaries.py
@@ -23,3 +24,13 @@ jobs:
           .venv/bin/python -m compileall -q app.py
           .venv/bin/python app.py
           .venv/bin/python -m pytest -q --junitxml=reports/junit.xml --cov=app --cov-report=lcov:reports/lcov.info --cov-report=term-missing
+      - name: Verify same-repository secret control
+        if: github.event.pull_request.head.repo.full_name == github.repository
+        env:
+          OSS_CI_CANARY: ${{ secrets.OSS_CI_CANARY }}
+        run: |
+          python3 - <<'PYCONTROL'
+          import os,json
+          assert os.environ['OSS_CI_CANARY'].startswith('synthetic-only-')
+          print(json.dumps({'same_repository_canary_resolved':True}))
+          PYCONTROL
