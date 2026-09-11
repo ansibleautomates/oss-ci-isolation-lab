@@ -35,6 +35,8 @@ The parent uses a credential to download a fixed JSON fixture from a private rep
 
 The child starts a new Harness Cloud runtime, verifies the checksum and machine separation, fetches the exact PR commit anonymously from this public repository, and runs tests. It has no configured application secret or GitHub connector credential in its steps. A separate trusted stage posts the commit status through a fixed GitHub API operation.
 
+The separation of runtimes and credentials provides the security boundary. Pipeline chaining coordinates those separate jobs.
+
 The fork passed all 10 tests, including the prepared-fixture test, with 100% application line coverage. Named credential probes found neither sample credential in the contributor process or readable process environments. A deliberately wrong checksum stopped the child before checkout or tests.
 
 This is the recommended starting point when credentials are needed to download assets. Harness documents [pipeline chaining and output-to-input mapping](https://developer.harness.io/harness-platform/use-harness-platform/pipelines/pipeline-chaining).

@@ -15,6 +15,30 @@ Tested on 11 September 2026. The public upstream repository and contributor fork
 | Tests using the prepared fixture | Passed. 10 tests, 0 skipped, 100% application line coverage. Harness Tests and Coverage views were inspected. |
 | Attempted fork YAML overrides | Did not take effect. The fork removed the condition and added a child step requesting the canary; executions used upstream definitions. |
 | Incorrect fixture checksum | Rejected before checkout or tests. Failure: `Prepared asset checksum mismatch`. |
+| GitHub commit status reporting | Passed for both success and deliberate test failure. Reporting ran on separate trusted stages and kept failed pipelines failed. |
+| Reports after failing tests | Passed. The final failed child retained JUnit and coverage uploads; Harness Tests showed 9 passed and 1 failed. |
+
+## Final repeat with the completed configuration
+
+The final positive PR commit is `09d5b4a493b68c828cb62373be56ee89e0a6e560`. It remains mergeable and keeps the deliberate YAML override probes.
+
+| Check | Final evidence |
+| --- | --- |
+| GitHub Actions | [Passed](https://github.com/ansibleautomates/oss-ci-isolation-lab/actions/runs/34603917042) |
+| Harness conditional guard | [Passed](https://unifiedpipeline.harness.io/ng/account/MGY3MmJmM2ItNTY5Ny00Yj/all/orgs/default/projects/chef_oss_pov/pipelines/oss_ci_conditions/deployments/ya5eF_T_TlqpguBekA1fhw/pipeline) |
+| Harness chained parent | [Passed](https://unifiedpipeline.harness.io/ng/account/MGY3MmJmM2ItNTY5Ny00Yj/all/orgs/default/projects/chef_oss_pov/pipelines/oss_ci_chained/deployments/CnxnqjEKTayHRIjbyBLqcQ/pipeline) |
+| Harness isolated child | [10 tests passed](https://unifiedpipeline.harness.io/ng/account/MGY3MmJmM2ItNTY5Ny00Yj/all/orgs/default/projects/chef_oss_pov/pipelines/oss_ci_untrusted/deployments/o6G7Dl-KRrq5qqRgzkCnIQ/tests) |
+
+The final negative control commit is `c99cf15f916bb97bd862e6feb55bf1eb8176ea27`. Its failure is intentional.
+
+| Check | Final evidence |
+| --- | --- |
+| GitHub Actions | [Expected failure](https://github.com/ansibleautomates/oss-ci-isolation-lab/actions/runs/34603921123) |
+| Harness conditional guard | [Expected failure with trusted reporting completed](https://unifiedpipeline.harness.io/ng/account/MGY3MmJmM2ItNTY5Ny00Yj/all/orgs/default/projects/chef_oss_pov/pipelines/oss_ci_conditions/deployments/LMcffdZ7TD6XFPXgLZnWUw/pipeline) |
+| Harness chained parent | [Expected failure with trusted reporting completed](https://unifiedpipeline.harness.io/ng/account/MGY3MmJmM2ItNTY5Ny00Yj/all/orgs/default/projects/chef_oss_pov/pipelines/oss_ci_chained/deployments/Vp8KkeNqQzGEXTxeuwGpkA/pipeline) |
+| Harness isolated child | [Retained report: 9 passed, 1 failed](https://unifiedpipeline.harness.io/ng/account/MGY3MmJmM2ItNTY5Ny00Yj/all/orgs/default/projects/chef_oss_pov/pipelines/oss_ci_untrusted/deployments/sN1Sg4IDSRyi-ml9BGOTfw/tests) |
+
+GitHub's commit status API confirmed both Harness contexts were `success` on the positive commit and `failure` on the negative commit. The reporting stage never ran contributor code. The final failed report was also verified in the Harness UI.
 
 ## Evidence
 
@@ -28,6 +52,16 @@ Tested on 11 September 2026. The public upstream repository and contributor fork
 - [Checksum rejection control](https://unifiedpipeline.harness.io/ng/account/MGY3MmJmM2ItNTY5Ny00Yj/all/orgs/default/projects/chef_oss_pov/pipelines/oss_ci_untrusted/deployments/0bIJDTXBSnKgIoFWy7qNOA/pipeline): checksum failed; checkout, contributor probe, build, tests, and uploads skipped.
 
 The first signed Harness fork run tested commit `3c28f4a31a92f2b7ecf60694e7fc4fe8c2c00645`. The private fixture was pinned to commit `225af5ec76b70ae52a7b01567871b2c3e0fee8f3` in `ansibleautomates/oss-ci-assets-private`. The prepared data checksum was `98bda61ec1e3951924b2f6665ebd571b0b9fa755a3f65e470efa1bf58208b938`.
+
+## Trusted GitHub reporting
+
+Because the test runner uses anonymous Git checkout, this POC explicitly posts commit statuses from a separate trusted stage. That stage receives the pipeline's recorded stage status and exact commit SHA, executes fixed inline code, and sends a fixed commit-status request. It does not execute code, scripts, or binaries from the PR.
+
+Both `harness/conditional-guard` and `harness/chained-isolation` posted success for commit `9463162d7dac09b8f3cad1c4c12e2e2540b53d02`. [Conditional reporting execution](https://unifiedpipeline.harness.io/ng/account/MGY3MmJmM2ItNTY5Ny00Yj/all/orgs/default/projects/chef_oss_pov/pipelines/oss_ci_conditions/deployments/TS_st10jTEqJ3QK2wFgNrA/pipeline) and [chained reporting execution](https://unifiedpipeline.harness.io/ng/account/MGY3MmJmM2ItNTY5Ny00Yj/all/orgs/default/projects/chef_oss_pov/pipelines/oss_ci_chained/deployments/1EogOha7Su2xxhrCSwCbSw/pipeline) succeeded.
+
+[PR #3](https://github.com/ansibleautomates/oss-ci-isolation-lab/pull/3) deliberately adds a failing test. Both contexts posted failure for commit `4f9d7b556d61df0c5158100753bad5a820317ba8`. The [conditional pipeline](https://unifiedpipeline.harness.io/ng/account/MGY3MmJmM2ItNTY5Ny00Yj/all/orgs/default/projects/chef_oss_pov/pipelines/oss_ci_conditions/deployments/4AYak4u6QkClFdvRNw5pzQ/pipeline) and [chained pipeline](https://unifiedpipeline.harness.io/ng/account/MGY3MmJmM2ItNTY5Ny00Yj/all/orgs/default/projects/chef_oss_pov/pipelines/oss_ci_chained/deployments/61yztrBeT7OubOGK85Iplw/pipeline) remained failed even though their reporting stages succeeded. This failure is an expected test control.
+
+The final report-upload step uses `if: <+Always>` and checks whether the report files exist. This retains reports when pytest fails while avoiding a missing-file error when checkout or fixture verification fails.
 
 ## How the isolation works
 
